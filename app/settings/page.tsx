@@ -450,7 +450,7 @@ export default function SettingsPage() {
                                 ))}
                                 <div className="text-xs text-muted-foreground mt-3 p-2 bg-muted/50 rounded">
                                     <p className="font-medium mb-1">Multi-device Timer Sync</p>
-                                    <p>Your timer state is synchronized across all devices. Only one device can run the timer at a time. Use "Take Over Timer" to transfer control to another device.</p>
+                                    <p>Your timer state is synchronized across all devices. Only one device can run the timer at a time. Use &quot;Take Over Timer&quot; to transfer control to another device.</p>
                                 </div>
                             </div>
                         )}
