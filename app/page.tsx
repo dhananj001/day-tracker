@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { History, Settings } from "lucide-react";
+import { History, Settings, Cloud, CloudOff, RefreshCw, LogOut } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -15,13 +15,19 @@ import { ActivitySelector } from "@/components/activity-selector";
 import { DailySummary } from "@/components/daily-summary";
 import { Timeline } from "@/components/timeline";
 import { AddActivityDialog } from "@/components/add-activity-dialog";
+import { AuthGuard } from "@/components/auth-guard";
 
 import { useTimer } from "@/hooks/use-timer";
 import { useActivities } from "@/hooks/use-activities";
 import { useSessions } from "@/hooks/use-sessions";
+import { useSync } from "@/hooks/use-sync";
+import { useAuth } from "@/contexts/auth-context";
 import { Activity, DailySummary as DailySummaryType, TimeSession } from "@/lib/types";
 
-export default function HomePage() {
+function HomeContent() {
+  const { logout } = useAuth();
+  const { isSyncing, isOnline, sync } = useSync();
+  
   const {
     timerState,
     elapsedSeconds,
@@ -116,7 +122,24 @@ export default function HomePage() {
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4">
-          <h1 className="text-lg font-semibold">Day Tracker</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold">Day Tracker</h1>
+            {/* Sync Status Indicator */}
+            <button
+              onClick={() => sync()}
+              disabled={isSyncing}
+              className="flex items-center gap-1 rounded-full px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+              title={isOnline ? "Synced" : "Offline"}
+            >
+              {isSyncing ? (
+                <RefreshCw className="h-3 w-3 animate-spin" />
+              ) : isOnline ? (
+                <Cloud className="h-3 w-3 text-green-500" />
+              ) : (
+                <CloudOff className="h-3 w-3 text-amber-500" />
+              )}
+            </button>
+          </div>
           <div className="flex items-center gap-2">
             <TimerBadge
               isRunning={timerState.isRunning}
@@ -136,6 +159,16 @@ export default function HomePage() {
                 <span className="sr-only">Settings</span>
               </Button>
             </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
+              onClick={logout}
+              title="Sign out"
+            >
+              <LogOut className="h-5 w-5" />
+              <span className="sr-only">Sign out</span>
+            </Button>
           </div>
         </div>
       </header>
@@ -206,5 +239,14 @@ export default function HomePage() {
         onAdd={handleAddActivity}
       />
     </div>
+  );
+}
+
+// Wrap with AuthGuard
+export default function HomePage() {
+  return (
+    <AuthGuard>
+      <HomeContent />
+    </AuthGuard>
   );
 }
