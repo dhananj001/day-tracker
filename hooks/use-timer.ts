@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================
-// TIMER HOOK - Core timer logic
+// TIMER HOOK - Core timer logic with background sync
 // ============================================
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -13,6 +13,7 @@ import {
   getSession,
 } from "@/lib/db";
 import { TimerState } from "@/lib/types";
+import { requestBackgroundSync } from "@/lib/background-sync";
 
 export function useTimer() {
   const [timerState, setTimerStateLocal] = useState<TimerState>({
@@ -91,6 +92,9 @@ export function useTimer() {
     setTimerStateLocal(newState);
     setElapsedSeconds(0);
 
+    // Request background sync for offline support
+    requestBackgroundSync().catch(console.error);
+
     return session;
   }, []);
 
@@ -119,6 +123,9 @@ export function useTimer() {
     await setTimerState(newState);
     setTimerStateLocal(newState);
     setElapsedSeconds(0);
+
+    // Request background sync for offline support
+    requestBackgroundSync().catch(console.error);
 
     return session;
   }, [timerState.currentSessionId, timerState.startTime]);

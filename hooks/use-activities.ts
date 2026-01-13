@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================
-// ACTIVITIES HOOK - Activity management
+// ACTIVITIES HOOK - Activity management with sync
 // ============================================
 
 import { useState, useEffect, useCallback } from "react";
@@ -12,11 +12,14 @@ import {
   deleteActivity,
   initializeDB,
 } from "@/lib/db";
+import { syncActivityToRemote } from "@/lib/sync";
 import { Activity } from "@/lib/types";
+import { useAuth } from "@/contexts/auth-context";
 
 export function useActivities() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { user, isAuthenticated } = useAuth();
 
   // Load activities on mount
   const loadActivities = useCallback(async () => {
@@ -35,14 +38,20 @@ export function useActivities() {
     loadActivities();
   }, [loadActivities]);
 
-  // Add new activity
+  // Add new activity (with remote sync if authenticated)
   const addActivity = useCallback(
     async (data: Omit<Activity, "id" | "createdAt" | "updatedAt">) => {
       const activity = await createActivity(data);
       setActivities((prev) => [...prev, activity]);
+
+      // Sync to Appwrite if authenticated
+      if (isAuthenticated && user) {
+        syncActivityToRemote(user.$id, activity).catch(console.error);
+      }
+
       return activity;
     },
-    []
+    [isAuthenticated, user]
   );
 
   // Update existing activity

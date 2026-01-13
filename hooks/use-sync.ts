@@ -8,15 +8,14 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import {
   performFullSync,
-  syncPendingSessions,
   onOnlineStatusChange,
-  SyncResult,
+  FullSyncResult,
 } from "@/lib/sync";
 
 interface SyncState {
   isSyncing: boolean;
   lastSyncAt: number | null;
-  lastResult: SyncResult | null;
+  lastResult: FullSyncResult | null;
   isOnline: boolean;
   pendingCount: number;
 }
@@ -32,29 +31,7 @@ export function useSync() {
   }));
   const syncTriggeredRef = useRef(false);
 
-  // Manual sync trigger
-  const sync = useCallback(async () => {
-    if (!isAuthenticated || !user || state.isSyncing) return;
-
-    setState((prev) => ({ ...prev, isSyncing: true }));
-
-    try {
-      const result = await syncPendingSessions(user.$id);
-      setState((prev) => ({
-        ...prev,
-        isSyncing: false,
-        lastSyncAt: Date.now(),
-        lastResult: result,
-        pendingCount: result.failed,
-      }));
-      return result;
-    } catch (error) {
-      setState((prev) => ({ ...prev, isSyncing: false }));
-      throw error;
-    }
-  }, [isAuthenticated, user, state.isSyncing]);
-
-  // Full sync (push + pull)
+  // Full sync (push activities + sessions, pull activities + sessions)
   const fullSync = useCallback(async () => {
     if (!isAuthenticated || !user || state.isSyncing) return;
 
@@ -66,11 +43,12 @@ export function useSync() {
         ...prev,
         isSyncing: false,
         lastSyncAt: Date.now(),
-        lastResult: result.push,
-        pendingCount: result.push.failed,
+        lastResult: result,
+        pendingCount: result.sessions.failed,
       }));
       return result;
     } catch (error) {
+      console.error("Sync failed:", error);
       setState((prev) => ({ ...prev, isSyncing: false }));
       throw error;
     }
@@ -78,33 +56,39 @@ export function useSync() {
 
   // Track online status
   useEffect(() => {
-    const cleanup = onOnlineStatusChange((online) => {
+    const cleanup = onOnlineStatusChange((online: boolean) => {
       setState((prev) => ({ ...prev, isOnline: online }));
 
       // Auto-sync when coming back online
       if (online && isAuthenticated && user) {
-        syncPendingSessions(user.$id).catch(console.error);
+        performFullSync(user.$id).catch(console.error);
       }
     });
 
     return cleanup;
   }, [isAuthenticated, user]);
 
-  // Auto-sync on mount if online and authenticated
+  // Auto full sync on mount if online and authenticated
   useEffect(() => {
-    if (isAuthenticated && state.isOnline && !syncTriggeredRef.current && user) {
+    if (
+      isAuthenticated &&
+      state.isOnline &&
+      !syncTriggeredRef.current &&
+      user
+    ) {
       syncTriggeredRef.current = true;
       // Use setTimeout to avoid the cascading setState warning
       const timer = setTimeout(() => {
-        syncPendingSessions(user.$id).catch(console.error);
-      }, 0);
+        console.log("🚀 Triggering initial full sync...");
+        performFullSync(user.$id).catch(console.error);
+      }, 500); // Small delay to ensure auth is settled
       return () => clearTimeout(timer);
     }
   }, [isAuthenticated, state.isOnline, user]);
 
   return {
     ...state,
-    sync,
+    sync: fullSync, // sync now does full bidirectional sync
     fullSync,
   };
 }

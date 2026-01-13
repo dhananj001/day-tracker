@@ -9,11 +9,14 @@ const withPWA = withPWAInit({
   disable: process.env.NODE_ENV === "development",
   workboxOptions: {
     disableDevLogs: true,
+    // Include custom service worker for background sync
+    importScripts: ["/sw-custom.js"],
   },
 });
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Empty turbopack config to silence warning when webpack is used for PWA
+  turbopack: {},
 };
 
 export default withPWA(nextConfig);

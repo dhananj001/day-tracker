@@ -50,8 +50,11 @@ function getUserPermissions(userId: string): string[] {
 // ACTIVITIES - Remote Operations
 // ============================================
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function fetchActivities(_userId: string): Promise<AppwriteActivity[]> {
+export async function fetchActivities(
+  userId: string
+): Promise<AppwriteActivity[]> {
+  // userId is used for permission context (documents are filtered by user permissions)
+  console.log(`Fetching activities for user: ${userId}`);
   const db = getDatabases();
   const response = await db.listDocuments(
     APPWRITE_CONFIG.databaseId,
@@ -164,8 +167,11 @@ export async function fetchSessions(
   return response.documents as unknown as AppwriteSession[];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function getRunningSession(_userId: string): Promise<AppwriteSession | null> {
+export async function getRunningSession(
+  userId: string
+): Promise<AppwriteSession | null> {
+  // userId provides permission context
+  console.log(`Checking for running session for user: ${userId}`);
   const db = getDatabases();
   const response = await db.listDocuments(
     APPWRITE_CONFIG.databaseId,
@@ -216,11 +222,11 @@ export async function stopRemoteSession(
   const db = getDatabases();
 
   // Get current session to calculate duration
-  const session = await db.getDocument(
+  const session = (await db.getDocument(
     APPWRITE_CONFIG.databaseId,
     APPWRITE_CONFIG.sessionsCollectionId,
     sessionId
-  ) as unknown as AppwriteSession;
+  )) as unknown as AppwriteSession;
 
   const startTime = new Date(session.startTime);
   const duration = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);

@@ -27,7 +27,7 @@ import { Activity, DailySummary as DailySummaryType, TimeSession } from "@/lib/t
 function HomeContent() {
   const { logout } = useAuth();
   const { isSyncing, isOnline, sync } = useSync();
-  
+
   const {
     timerState,
     elapsedSeconds,

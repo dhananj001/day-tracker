@@ -9,8 +9,10 @@ export const APPWRITE_CONFIG = {
   endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!,
   projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!,
   databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-  activitiesCollectionId: process.env.NEXT_PUBLIC_APPWRITE_ACTIVITIES_COLLECTION_ID!,
-  sessionsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_SESSIONS_COLLECTION_ID!,
+  activitiesCollectionId:
+    process.env.NEXT_PUBLIC_APPWRITE_ACTIVITIES_COLLECTION_ID!,
+  sessionsCollectionId:
+    process.env.NEXT_PUBLIC_APPWRITE_SESSIONS_COLLECTION_ID!,
 };
 
 // Client-side Appwrite client (singleton)
