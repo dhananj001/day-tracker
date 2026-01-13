@@ -26,14 +26,37 @@ interface TimeTrackerDB extends DBSchema {
   };
 }
 
-const DB_NAME = "time-tracker-db";
+const DB_NAME_PREFIX = "time-tracker-db";
 const DB_VERSION = 1;
 
 let dbPromise: Promise<IDBPDatabase<TimeTrackerDB>> | null = null;
+let currentUserId: string | null = null;
+
+// Get the database name for a specific user
+function getDBName(userId?: string): string {
+  return userId ? `${DB_NAME_PREFIX}-${userId}` : DB_NAME_PREFIX;
+}
+
+// Initialize/switch database for a user
+export function setCurrentUser(userId: string | null): void {
+  if (currentUserId !== userId) {
+    // Close existing connection and create new one for new user
+    dbPromise = null;
+    currentUserId = userId;
+    console.log(`DB: Switched to user database: ${userId || 'anonymous'}`);
+  }
+}
+
+// Get current user ID
+export function getCurrentUserId(): string | null {
+  return currentUserId;
+}
 
 function getDB(): Promise<IDBPDatabase<TimeTrackerDB>> {
   if (!dbPromise) {
-    dbPromise = openDB<TimeTrackerDB>(DB_NAME, DB_VERSION, {
+    const dbName = getDBName(currentUserId || undefined);
+    console.log(`DB: Opening database: ${dbName}`);
+    dbPromise = openDB<TimeTrackerDB>(dbName, DB_VERSION, {
       upgrade(db) {
         // Activities store
         if (!db.objectStoreNames.contains("activities")) {

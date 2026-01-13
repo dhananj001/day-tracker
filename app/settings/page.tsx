@@ -422,7 +422,7 @@ export default function SettingsPage() {
                                                 <User className="h-4 w-4 text-primary" />
                                             </div>
                                             <div>
-                                                <p className="font-medium text-sm">
+                                                <div className="font-medium text-sm">
                                                     {device.deviceName}
                                                     {device.deviceId === globalTimer?.deviceId && (
                                                         <span className="ml-2 inline-flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
@@ -430,7 +430,7 @@ export default function SettingsPage() {
                                                             Active Timer
                                                         </span>
                                                     )}
-                                                </p>
+                                                </div>
                                                 <p className="text-xs text-muted-foreground">
                                                     Last seen: {formatLastSeen(new Date(device.lastSeen).getTime())}
                                                 </p>

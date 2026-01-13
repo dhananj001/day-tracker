@@ -35,8 +35,13 @@ export function useActivities() {
   }, []);
 
   useEffect(() => {
-    loadActivities();
-  }, [loadActivities]);
+    if (user) {
+      loadActivities();
+    } else {
+      setActivities([]);
+      setIsLoading(false);
+    }
+  }, [loadActivities, user]);
 
   // Add new activity (with remote sync if authenticated)
   const addActivity = useCallback(

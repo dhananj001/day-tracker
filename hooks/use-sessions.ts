@@ -13,10 +13,12 @@ import {
   getDateKey,
 } from "@/lib/db";
 import { TimeSession, DailySummary } from "@/lib/types";
+import { useAuth } from "@/contexts/auth-context";
 
 export function useSessions() {
   const [sessions, setSessions] = useState<TimeSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
 
   // Load all sessions
   const loadSessions = useCallback(async () => {
@@ -33,8 +35,13 @@ export function useSessions() {
   }, []);
 
   useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
+    if (user) {
+      loadSessions();
+    } else {
+      setSessions([]);
+      setIsLoading(false);
+    }
+  }, [loadSessions, user]);
 
   // Get sessions for a specific date
   const getSessionsForDate = useCallback(async (date: string) => {

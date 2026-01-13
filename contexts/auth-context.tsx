@@ -14,6 +14,7 @@ import {
 } from "react";
 import { Models, OAuthProvider } from "appwrite";
 import { getAccount } from "@/lib/appwrite";
+import { setCurrentUser } from "@/lib/db";
 
 interface AuthContextType {
     user: Models.User<Models.Preferences> | null;
@@ -31,6 +32,16 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<Models.User<Models.Preferences> | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+
+    // Update local database when user changes
+    useEffect(() => {
+        if (user) {
+            console.log('Auth: Setting current user for local DB:', user.$id);
+            setCurrentUser(user.$id);
+        } else {
+            setCurrentUser(null);
+        }
+    }, [user]);
 
     // Refresh session (for manual refresh after login)
     const refresh = useCallback(async () => {
@@ -52,14 +63,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         let isMounted = true;
 
         const checkAuth = async () => {
-            // Check if this is an OAuth callback with userId and secret
+            // Check for OAuth callback with userId and secret
             if (typeof window !== 'undefined') {
                 const urlParams = new URLSearchParams(window.location.search);
                 const userId = urlParams.get('userId');
                 const secret = urlParams.get('secret');
 
                 if (userId && secret) {
-                    console.log('Auth: OAuth token callback detected, creating session...');
+                    console.log('Auth: OAuth token callback detected, userId:', userId, 'creating session...');
                     try {
                         const account = getAccount();
                         await account.createSession(userId, secret);
@@ -67,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         // Clean up URL
                         window.history.replaceState({}, document.title, window.location.pathname);
                         const currentUser = await account.get();
-                        console.log('Auth: ✅ User:', currentUser.email);
+                        console.log('Auth: ✅ User after OAuth:', currentUser.email, 'ID:', currentUser.$id);
                         if (isMounted) {
                             setUser(currentUser);
                             setIsLoading(false);
@@ -84,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 try {
                     const account = getAccount();
                     const currentUser = await account.get();
-                    console.log('Auth: ✅ Session found! User:', currentUser.email);
+                    console.log('Auth: ✅ Existing session found! User:', currentUser.email, 'ID:', currentUser.$id);
                     if (isMounted) {
                         setUser(currentUser);
                         setIsLoading(false);
@@ -129,12 +140,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         [login]
     );
 
-    // Login with Google OAuth (using token-based flow to avoid cookie issues)
+    // Login with Google OAuth (using token-based flow)
     const loginWithGoogle = useCallback(async () => {
         try {
             const account = getAccount();
             // Use createOAuth2Token which returns userId and secret in the redirect URL
-            // This avoids third-party cookie issues that createOAuth2Session has
             account.createOAuth2Token(
                 OAuthProvider.Google,
                 window.location.origin + '/', // Success URL - will include userId & secret params
@@ -150,9 +160,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Logout
     const logout = useCallback(async () => {
-        const account = getAccount();
-        await account.deleteSession("current");
+        console.log('Auth: Logging out...');
+        try {
+            const account = getAccount();
+            await account.deleteSession("current");
+            console.log('Auth: Session deleted successfully');
+        } catch (error) {
+            console.error('Auth: Failed to delete session:', error);
+        }
+        console.log('Auth: Setting user to null');
         setUser(null);
+        // Clear any cached OAuth state
+        if (typeof window !== 'undefined') {
+            // Clear URL params that might be cached
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
     }, []);
 
     const value: AuthContextType = {
