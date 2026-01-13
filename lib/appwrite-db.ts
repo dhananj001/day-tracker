@@ -34,6 +34,25 @@ export interface AppwriteSession extends AppwriteDocument {
   clientId: string;
 }
 
+export interface AppwriteGlobalTimerState extends AppwriteDocument {
+  userId: string;
+  deviceId: string;
+  deviceName: string;
+  isRunning: boolean;
+  currentSessionId: string | null;
+  currentActivityId: string | null;
+  startTime: string | null; // ISO datetime
+  lastActivity: string; // ISO datetime
+}
+
+export interface AppwriteDevice extends AppwriteDocument {
+  userId: string;
+  deviceId: string;
+  deviceName: string;
+  userAgent: string;
+  lastSeen: string; // ISO datetime
+}
+
 // ============================================
 // PERMISSION HELPERS
 // ============================================
@@ -343,5 +362,216 @@ export async function syncSessionToRemote(
       }
     }
     return { success: false, error: appwriteError?.message || "Sync failed" };
+  }
+}
+
+// ============================================
+// GLOBAL TIMER STATE - Cross-device sync
+// ============================================
+
+export async function getGlobalTimerState(
+  userId: string
+): Promise<AppwriteGlobalTimerState | null> {
+  const db = getDatabases();
+  try {
+    const response = await db.listDocuments(
+      APPWRITE_CONFIG.databaseId,
+      APPWRITE_CONFIG.globalTimerCollectionId,
+      [Query.equal("userId", userId), Query.limit(1)]
+    );
+    return (
+      (response.documents[0] as unknown as AppwriteGlobalTimerState) || null
+    );
+  } catch {
+    return null;
+  }
+}
+
+export async function createOrUpdateGlobalTimerState(
+  userId: string,
+  deviceId: string,
+  deviceName: string,
+  timerState: {
+    isRunning: boolean;
+    currentSessionId: string | null;
+    currentActivityId: string | null;
+    startTime: number | null;
+  }
+): Promise<AppwriteGlobalTimerState> {
+  const db = getDatabases();
+  const now = new Date().toISOString();
+
+  // Check if global timer state exists
+  const existing = await getGlobalTimerState(userId);
+
+  if (existing) {
+    // Update existing
+    const doc = await db.updateDocument(
+      APPWRITE_CONFIG.databaseId,
+      APPWRITE_CONFIG.globalTimerCollectionId,
+      existing.$id,
+      {
+        deviceId,
+        deviceName,
+        isRunning: timerState.isRunning,
+        currentSessionId: timerState.currentSessionId,
+        currentActivityId: timerState.currentActivityId,
+        startTime: timerState.startTime
+          ? new Date(timerState.startTime).toISOString()
+          : null,
+        lastActivity: now,
+      }
+    );
+    return doc as unknown as AppwriteGlobalTimerState;
+  } else {
+    // Create new
+    const doc = await db.createDocument(
+      APPWRITE_CONFIG.databaseId,
+      APPWRITE_CONFIG.globalTimerCollectionId,
+      ID.unique(),
+      {
+        userId,
+        deviceId,
+        deviceName,
+        isRunning: timerState.isRunning,
+        currentSessionId: timerState.currentSessionId,
+        currentActivityId: timerState.currentActivityId,
+        startTime: timerState.startTime
+          ? new Date(timerState.startTime).toISOString()
+          : null,
+        lastActivity: now,
+      },
+      getUserPermissions(userId)
+    );
+    return doc as unknown as AppwriteGlobalTimerState;
+  }
+}
+
+export async function clearGlobalTimerState(userId: string): Promise<void> {
+  const db = getDatabases();
+  const existing = await getGlobalTimerState(userId);
+  if (existing) {
+    await db.updateDocument(
+      APPWRITE_CONFIG.databaseId,
+      APPWRITE_CONFIG.globalTimerCollectionId,
+      existing.$id,
+      {
+        isRunning: false,
+        currentSessionId: null,
+        currentActivityId: null,
+        startTime: null,
+        lastActivity: new Date().toISOString(),
+      }
+    );
+  }
+}
+
+export async function transferTimerToDevice(
+  userId: string,
+  newDeviceId: string,
+  newDeviceName: string
+): Promise<AppwriteGlobalTimerState | null> {
+  const db = getDatabases();
+  const existing = await getGlobalTimerState(userId);
+  if (!existing) return null;
+
+  // Update device ownership
+  const doc = await db.updateDocument(
+    APPWRITE_CONFIG.databaseId,
+    APPWRITE_CONFIG.globalTimerCollectionId,
+    existing.$id,
+    {
+      deviceId: newDeviceId,
+      deviceName: newDeviceName,
+      lastActivity: new Date().toISOString(),
+    }
+  );
+  return doc as unknown as AppwriteGlobalTimerState;
+}
+
+// ============================================
+// DEVICE MANAGEMENT
+// ============================================
+
+export async function registerDevice(
+  userId: string,
+  deviceId: string,
+  deviceName: string,
+  userAgent: string
+): Promise<AppwriteDevice> {
+  const db = getDatabases();
+
+  // Check if device already exists
+  try {
+    const response = await db.listDocuments(
+      APPWRITE_CONFIG.databaseId,
+      APPWRITE_CONFIG.devicesCollectionId,
+      [Query.equal("deviceId", deviceId), Query.limit(1)]
+    );
+
+    if (response.documents.length > 0) {
+      // Update last seen
+      const existing = response.documents[0] as unknown as AppwriteDevice;
+      const doc = await db.updateDocument(
+        APPWRITE_CONFIG.databaseId,
+        APPWRITE_CONFIG.devicesCollectionId,
+        existing.$id,
+        { lastSeen: new Date().toISOString() }
+      );
+      return doc as unknown as AppwriteDevice;
+    }
+  } catch {
+    // Device doesn't exist, create new
+  }
+
+  // Create new device record
+  const doc = await db.createDocument(
+    APPWRITE_CONFIG.databaseId,
+    APPWRITE_CONFIG.devicesCollectionId,
+    ID.unique(),
+    {
+      userId,
+      deviceId,
+      deviceName,
+      userAgent,
+      lastSeen: new Date().toISOString(),
+    },
+    getUserPermissions(userId)
+  );
+  return doc as unknown as AppwriteDevice;
+}
+
+export async function getUserDevices(
+  userId: string
+): Promise<AppwriteDevice[]> {
+  const db = getDatabases();
+  const response = await db.listDocuments(
+    APPWRITE_CONFIG.databaseId,
+    APPWRITE_CONFIG.devicesCollectionId,
+    [Query.equal("userId", userId), Query.orderDesc("lastSeen")]
+  );
+  return response.documents as unknown as AppwriteDevice[];
+}
+
+export async function updateDeviceLastSeen(deviceId: string): Promise<void> {
+  const db = getDatabases();
+  try {
+    const response = await db.listDocuments(
+      APPWRITE_CONFIG.databaseId,
+      APPWRITE_CONFIG.devicesCollectionId,
+      [Query.equal("deviceId", deviceId), Query.limit(1)]
+    );
+
+    if (response.documents.length > 0) {
+      const device = response.documents[0] as unknown as AppwriteDevice;
+      await db.updateDocument(
+        APPWRITE_CONFIG.databaseId,
+        APPWRITE_CONFIG.devicesCollectionId,
+        device.$id,
+        { lastSeen: new Date().toISOString() }
+      );
+    }
+  } catch (error) {
+    console.error("Failed to update device last seen:", error);
   }
 }

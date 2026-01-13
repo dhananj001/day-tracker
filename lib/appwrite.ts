@@ -13,6 +13,9 @@ export const APPWRITE_CONFIG = {
     process.env.NEXT_PUBLIC_APPWRITE_ACTIVITIES_COLLECTION_ID!,
   sessionsCollectionId:
     process.env.NEXT_PUBLIC_APPWRITE_SESSIONS_COLLECTION_ID!,
+  globalTimerCollectionId:
+    process.env.NEXT_PUBLIC_APPWRITE_GLOBAL_TIMER_COLLECTION_ID!,
+  devicesCollectionId: process.env.NEXT_PUBLIC_APPWRITE_DEVICES_COLLECTION_ID!,
 };
 
 // Client-side Appwrite client (singleton)

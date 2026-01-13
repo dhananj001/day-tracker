@@ -17,6 +17,7 @@ interface ActivitySelectorProps {
     isTimerRunning: boolean;
     onSelectActivity: (activity: Activity) => void;
     onAddActivity: () => void;
+    disabled?: boolean;
 }
 
 export function ActivitySelector({
@@ -25,6 +26,7 @@ export function ActivitySelector({
     isTimerRunning,
     onSelectActivity,
     onAddActivity,
+    disabled = false,
 }: ActivitySelectorProps) {
     return (
         <div className="w-full">
@@ -35,6 +37,7 @@ export function ActivitySelector({
                     size="sm"
                     className="h-8 gap-1.5 text-muted-foreground"
                     onClick={onAddActivity}
+                    disabled={disabled}
                 >
                     <Plus className="h-4 w-4" />
                     Add
@@ -54,10 +57,13 @@ export function ActivitySelector({
                             transition={{ delay: index * 0.05 }}
                         >
                             <button
-                                onClick={() => onSelectActivity(activity)}
+                                onClick={() => !disabled && onSelectActivity(activity)}
+                                disabled={disabled}
                                 className={cn(
                                     "flex w-full flex-col items-center gap-2 rounded-xl border-2 p-3 transition-all",
-                                    "hover:scale-105 active:scale-95",
+                                    disabled
+                                        ? "opacity-50 cursor-not-allowed"
+                                        : "hover:scale-105 active:scale-95",
                                     isActive
                                         ? "border-current bg-card shadow-lg"
                                         : "border-transparent bg-muted/50 hover:bg-muted"

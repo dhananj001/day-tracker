@@ -29,6 +29,27 @@ export interface TimerState {
   startTime: number | null;
 }
 
+export interface GlobalTimerState {
+  id: string; // Will be userId for singleton per user
+  userId: string;
+  deviceId: string; // Unique device identifier
+  deviceName: string; // Human-readable device name
+  isRunning: boolean;
+  currentSessionId: string | null;
+  currentActivityId: string | null;
+  startTime: number | null;
+  lastActivity: number; // Timestamp of last activity
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface DeviceInfo {
+  id: string;
+  name: string;
+  userAgent: string;
+  lastSeen: number;
+}
+
 export interface DailySummary {
   date: string; // YYYY-MM-DD
   totalSeconds: number;

@@ -34,11 +34,14 @@ import {
 import { useActivities } from "@/hooks/use-activities";
 import { useSync } from "@/hooks/use-sync";
 import { useAuth } from "@/contexts/auth-context";
+import { useGlobalTimer } from "@/hooks/use-global-timer";
 import { ActivityIcon, AVAILABLE_ICONS } from "@/components/activity-icon";
 import { AddActivityDialog } from "@/components/add-activity-dialog";
 import { Activity } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { getSessions, getPendingSessions } from "@/lib/db";
+import { getUserDevices, transferTimerToDevice } from "@/lib/appwrite-db";
+import { AppwriteDevice } from "@/lib/appwrite-db";
 
 const PRESET_COLORS = [
     "#3B82F6",
@@ -58,12 +61,15 @@ export default function SettingsPage() {
         useActivities();
     const { isOnline, isSyncing, lastSyncAt, lastResult, fullSync } = useSync();
     const { user, isAuthenticated, logout } = useAuth();
+    const { globalTimer, currentDeviceId, currentDeviceName } = useGlobalTimer();
 
     const [showAddDialog, setShowAddDialog] = useState(false);
     const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
     const [deletingActivity, setDeletingActivity] = useState<Activity | null>(null);
     const [pendingCount, setPendingCount] = useState(0);
     const [totalSessions, setTotalSessions] = useState(0);
+    const [devices, setDevices] = useState<AppwriteDevice[]>([]);
+    const [devicesLoading, setDevicesLoading] = useState(false);
 
     // Load pending session count
     useEffect(() => {
@@ -75,6 +81,25 @@ export default function SettingsPage() {
         };
         loadCounts();
     }, [lastSyncAt]);
+
+    // Load user devices
+    useEffect(() => {
+        if (!isAuthenticated || !user) return;
+
+        const loadDevices = async () => {
+            setDevicesLoading(true);
+            try {
+                const userDevices = await getUserDevices(user.$id);
+                setDevices(userDevices);
+            } catch (error) {
+                console.error('Failed to load devices:', error);
+            } finally {
+                setDevicesLoading(false);
+            }
+        };
+
+        loadDevices();
+    }, [isAuthenticated, user]);
 
     const handleEditActivity = async (data: Partial<Activity>) => {
         if (!editingActivity) return;
@@ -103,6 +128,34 @@ export default function SettingsPage() {
         if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
         if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
         return date.toLocaleDateString();
+    };
+
+    const formatLastSeen = (timestamp: number) => {
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diff = now.getTime() - date.getTime();
+
+        if (diff < 60000) return "Just now";
+        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+        if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+        return date.toLocaleDateString();
+    };
+
+    const handleTransferTimerToDevice = async (targetDeviceId: string) => {
+        if (!user || !globalTimer) return;
+
+        try {
+            const targetDevice = devices.find(d => d.$id === targetDeviceId);
+            if (!targetDevice) return;
+
+            await transferTimerToDevice(user.$id, targetDevice.deviceId, targetDevice.deviceName);
+            // Refresh devices list to show updated state
+            const userDevices = await getUserDevices(user.$id);
+            setDevices(userDevices);
+        } catch (error) {
+            console.error('Failed to transfer timer:', error);
+            // Could add toast notification here
+        }
     };
 
     return (
@@ -336,6 +389,70 @@ export default function SettingsPage() {
                                     )}
                                 </Button>
                             </>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Devices Section */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                            <User className="h-4 w-4" />
+                            Connected Devices
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {devicesLoading ? (
+                            <div className="flex h-16 items-center justify-center text-muted-foreground">
+                                Loading devices...
+                            </div>
+                        ) : devices.length === 0 ? (
+                            <div className="flex h-16 items-center justify-center text-muted-foreground">
+                                No devices registered
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {devices.map((device) => (
+                                    <div
+                                        key={device.$id}
+                                        className="flex items-center justify-between rounded-lg border p-3"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                                <User className="h-4 w-4 text-primary" />
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-sm">
+                                                    {device.deviceName}
+                                                    {device.deviceId === globalTimer?.deviceId && (
+                                                        <span className="ml-2 inline-flex items-center gap-1 text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
+                                                            <div className="h-1.5 w-1.5 bg-green-500 rounded-full animate-pulse" />
+                                                            Active Timer
+                                                        </span>
+                                                    )}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Last seen: {formatLastSeen(new Date(device.lastSeen).getTime())}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {device.deviceId !== globalTimer?.deviceId && globalTimer?.isRunning && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleTransferTimerToDevice(device.$id)}
+                                                className="text-xs"
+                                            >
+                                                Take Over Timer
+                                            </Button>
+                                        )}
+                                    </div>
+                                ))}
+                                <div className="text-xs text-muted-foreground mt-3 p-2 bg-muted/50 rounded">
+                                    <p className="font-medium mb-1">Multi-device Timer Sync</p>
+                                    <p>Your timer state is synchronized across all devices. Only one device can run the timer at a time. Use "Take Over Timer" to transfer control to another device.</p>
+                                </div>
+                            </div>
                         )}
                     </CardContent>
                 </Card>
